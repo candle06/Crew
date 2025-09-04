@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🧙‍♀️ 마녀의 대저택 (Multi-tab)</title>
+<style>
+body {margin:0; font-family:'Nanum Gothic',sans-serif; background:#1a0a2c; color:#f0e6f6; overflow:hidden;}
+#chatCanvas{position:absolute; top:0; left:0; width:100%; height:100%; z-index:1;}
+.container, .chat-container{position:relative; z-index:10; width:95%; max-width:500px; margin:40px auto; padding:20px; background: rgba(30,0,50,0.85); border-radius:20px; box-shadow:0 0 20px #8a2be2;}
+h1,h2{text-align:center;}
+input, button {width:100%; padding:10px; margin:5px 0; border-radius:10px; border:none; box-sizing:border-box; transition:all 0.2s;}
+input:focus, button:hover{transform:scale(1.02); box-shadow:0 0 10px #8a2be2;}
+button{background:linear-gradient(45deg,#8a2be2,#ff69b4); color:#fff; cursor:pointer;}
+#chatBox{height:250px; overflow-y:auto; background: rgba(50,0,70,0.6); padding:10px; border-radius:15px; margin-bottom:10px;}
+.chat-msg{background: rgba(138,43,226,0.5); padding:8px 12px; margin:5px 0; border-radius:15px; opacity:0; transform: translateY(10px) scale(0.9); animation:magicAppear 0.6s forwards;}
+@keyframes magicAppear{0%{opacity:0; transform:translateY(10px) scale(0.9); text-shadow:0 0 2px #fff;} 50%{opacity:1; transform:translateY(0) scale(1.05); text-shadow:0 0 10px #ff69b4;} 100%{opacity:1; transform:translateY(0) scale(1); text-shadow:0 0 2px #d8b0ff;}}
+@media screen and (max-width:480px){#chatBox{height:200px;} input, button{font-size:16px; padding:12px;}}
+</style>
+</head>
+<body>
+
+<canvas id="chatCanvas"></canvas>
+
+<div class="container" id="authContainer">
+  <h1>🧙‍♀️ 마녀의 대저택 입장</h1>
+  <input type="text" id="nickname" placeholder="닉네임 입력">
+  <button id="loginBtn">채팅 입장</button>
+</div>
+
+<div class="chat-container" id="chatContainer" style="display:none;">
+  <h2>🪄 크루 채팅 (Multi-tab)</h2>
+  <div id="chatBox"></div>
+  <input type="text" id="msgInput" placeholder="메시지 입력...">
+  <button id="sendBtn">보내기</button>
+</div>
+
+<script>
+/* ---------- Canvas 입자 ---------- */
+const canvas=document.getElementById('chatCanvas');
+const ctx=canvas.getContext('2d');
+canvas.width=window.innerWidth; canvas.height=window.innerHeight;
+class Particle{constructor(x,y,color){this.x=Math.random()*canvas.width; this.y=Math.random()*canvas.height; this.destX=x; this.destY=y; this.color=color; this.velX=(Math.random()-0.5)*6; this.velY=(Math.random()-0.5)*6; this.life=Math.random()*80+80;} update(){const dx=this.destX-this.x; const dy=this.destY-this.y; this.velX+=dx*0.02; this.velY+=dy*0.02; this.velX*=0.85; this.velY*=0.85; this.x+=this.velX; this.y+=this.velY; this.life--; if(this.life<40){this.x+=(Math.random()-0.5)*2; this.y+=(Math.random()-0.5)*2;}} draw(){ctx.fillStyle=this.color; ctx.fillRect(this.x,this.y,3,3);}}
+let particles=[];
+function createTextParticles(text){const tempCanvas=document.createElement('canvas'); const tempCtx=tempCanvas.getContext('2d'); tempCanvas.width=canvas.width; tempCanvas.height=canvas.height; tempCtx.font="bold 80px Nanum Gothic"; tempCtx.fillStyle="white"; tempCtx.fillText(text,canvas.width/2-text.length*22,canvas.height/2); const imageData=tempCtx.getImageData(0,0,tempCanvas.width,tempCanvas.height); particles=[]; for(let y=0;y<imageData.height;y+=6){for(let x=0;x<imageData.width;x+=6){const i=(y*imageData.width+x)*4; if(imageData.data[i+3]>128){const colors=["#d8b0ff","#ff69b4","#ffffff"]; const color=colors[Math.floor(Math.random()*colors.length)]; particles.push(new Particle(x,y,color));}}}}
+function animate(){ctx.clearRect(0,0,canvas.width,canvas.height); particles.forEach((p,i)=>{p.update(); p.draw(); if(p.life<=0) particles.splice(i,1);}); requestAnimationFrame(animate);}
+animate();
+
+/* ---------- 로그인 & 채팅 ---------- */
+const authContainer=document.getElementById("authContainer");
+const chatContainer=document.getElementById("chatContainer");
+const nicknameInput=document.getElementById("nickname");
+const loginBtn=document.getElementById("loginBtn");
+const chatBox=document.getElementById("chatBox");
+const msgInput=document.getElementById("msgInput");
+const sendBtn=document.getElementById("sendBtn");
+
+let nickname="";
+loginBtn.addEventListener("click", ()=>{
+  nickname=nicknameInput.value.trim();
+  if(!nickname){alert("닉네임 입력!"); return;}
+  authContainer.style.display="none";
+  chatContainer.style.display="block";
+  loadChat(); // 로그인 후 기존 메시지 불러오기
+});
+
+/* ---------- LocalStorage 메시지 처리 ---------- */
+function getChatData(){return JSON.parse(localStorage.getItem("chatData")||"[]");}
+function saveChatData(data){localStorage.setItem("chatData",JSON.stringify(data));}
+
+let lastLength=0;
+function loadChat(){
+  let data=getChatData();
+  if(data.length>lastLength){
+    for(let i=lastLength;i<data.length;i++){
+      const msg=data[i];
+      const div=document.createElement("div");
+      div.className="chat-msg";
+      div.textContent=`${msg.user}: ${msg.message}`;
+      chatBox.appendChild(div);
+      chatBox.scrollTop=chatBox.scrollHeight;
+      createTextParticles(msg.message);
+    }
+    lastLength=data.length;
+  }
+}
+
+/* ---------- 메시지 전송 ---------- */
+sendBtn.addEventListener("click", ()=>{
+  const msg=msgInput.value.trim();
+  if(!msg) return;
+  const data=getChatData();
+  data.push({user:nickname,message:msg});
+  saveChatData(data);
+  msgInput.value="";
+  loadChat();
+});
+
+/* ---------- 다른 탭 감지 ---------- */
+window.addEventListener("storage", ()=>{
+  loadChat();
+});
+
+/* ---------- 주기적으로 불러오기 ---------- */
+setInterval(loadChat,500);
+</script>
+
+</body>
+</html>
